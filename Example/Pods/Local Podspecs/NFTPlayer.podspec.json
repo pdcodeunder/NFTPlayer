@@ -1,0 +1,23 @@
+{
+  "name": "NFTPlayer",
+  "version": "0.1.0",
+  "summary": "A short description of NFTPlayer.",
+  "description": "TODO: Add long description of the pod here.",
+  "homepage": "https://github.com/pengdong/NFTPlayer",
+  "license": {
+    "type": "MIT",
+    "file": "LICENSE"
+  },
+  "authors": {
+    "pengdong": "pengdong2014@xiaochuankeji.cn"
+  },
+  "source": {
+    "git": "https://github.com/pengdong/NFTPlayer.git",
+    "tag": "0.1.0"
+  },
+  "platforms": {
+    "ios": "13.0"
+  },
+  "source_files": "NFTPlayer/Classes/**/*",
+  "resources": "NFTPlayer/Assets/*"
+}
