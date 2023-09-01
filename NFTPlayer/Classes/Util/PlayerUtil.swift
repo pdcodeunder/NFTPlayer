@@ -9,6 +9,12 @@ import Foundation
 import UIKit
 import CommonCrypto
 
+func devPrint(_ items: Any...) {
+    #if DEBUG
+    print(items)
+    #endif
+}
+
 extension UIImage {
     convenience init?(playerImageName name: String) {
         let bundle = Bundle(for: PlayerUtil.self)
@@ -17,6 +23,11 @@ extension UIImage {
 }
 
 class PlayerUtil {
+    static func doInMainThread(_ block: @escaping (() -> Void)) {
+        if Thread.isMainThread { block() }
+        else { DispatchQueue.main.async { block() } }
+    }
+    
     static var appIsActive: Bool {
         var isActive = true
         if #available(iOS 13.0, *) {

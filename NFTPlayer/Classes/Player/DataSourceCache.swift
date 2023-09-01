@@ -20,6 +20,20 @@ struct CacheRange: Codable {
     }
 }
 
+fileprivate
+struct CacheCodable: Codable {
+    let length: UInt64
+    let ranges: [CacheRange]
+    let mimeType: String?
+}
+
+enum DataSourceError: Error {
+    case noCache
+    case readFileError
+    case network
+    case requestIsEmpty
+}
+
 class DataSourceCache {
     /// 清除缓存
     static func clearCache() {
@@ -30,6 +44,8 @@ class DataSourceCache {
         return 0
     }
     
+    var videoLength: UInt64 = 0
+    var mimeType: String?
     let url: URL
     let cacheKey: String
     private var writeFileHandle: FileHandle?
@@ -50,9 +66,9 @@ class DataSourceCache {
         unarchiveCacheRanges()
     }
     
-    func readData(offset: UInt64, length: UInt64, complete: (([(UInt64, Data)]) -> Void)?) {
+    func readData(offset: UInt64, length: UInt64, data: ((Data) -> Void)?, complete: ((DataSourceError?) -> Void)?) {
         handleQueue.async { [weak self] in
-            self?.internalReadData(offset: offset, length: length, complete: complete)
+            self?.internalReadData(offset: offset, length: length, data: data, complete: complete)
         }
     }
     
@@ -68,62 +84,78 @@ extension DataSourceCache {
         guard let docFolderURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             fatalError("player datasource cache read documentDirectory error")
         }
+        let pathUrl = docFolderURL.appendingPathComponent("player/\(cacheKey)/")
         let fileName = self.url.lastPathComponent
-        let fileURL = docFolderURL.appendingPathComponent("player/\(cacheKey)/\(fileName)")
+        let fileURL = pathUrl.appendingPathComponent(fileName)
         let path = fileURL.path
+        devPrint("------path: \(path)")
         if FileManager.default.fileExists(atPath: path) {
             writeFileHandle = try? FileHandle(forUpdating: fileURL)
             readFileHandle = try? FileHandle(forUpdating: fileURL)
-        } else if FileManager.default.createFile(atPath: path, contents: nil) {
-            writeFileHandle = try? FileHandle(forUpdating: fileURL)
-            readFileHandle = try? FileHandle(forUpdating: fileURL)
+        } else {
+            try? FileManager.default.createDirectory(at: pathUrl, withIntermediateDirectories: true)
+            if FileManager.default.createFile(atPath: path, contents: nil) {
+                writeFileHandle = try? FileHandle(forUpdating: fileURL)
+                readFileHandle = try? FileHandle(forUpdating: fileURL)
+            }
         }
     }
     
-    private func internalReadData(offset: UInt64, length: UInt64, complete: (([(UInt64, Data)]) -> Void)?) {
-        
-        func readData(local: UInt64, count: Int) -> (UInt64, Data)? {
+    private func internalReadData(offset: UInt64, length: UInt64, data: ((Data) -> Void)?, complete: ((DataSourceError?) -> Void)?) {
+        guard videoLength > 10 else {
+            complete?(.noCache)
+            return
+        }
+        print("-------read data offset: \(offset), length: \(length)")
+        var hasCache = false
+        dataRanges.forEach { item in
+            if item.offset <= offset, item.max >= offset + length {
+                hasCache = true
+            }
+        }
+        if hasCache {
+            stepReadFileData(offset: offset, length: length, dataBlock: data, complete: complete)
+        } else {
+            complete?(.noCache)
+        }
+    }
+    
+    private func stepReadFileData(offset: UInt64, length: UInt64, dataBlock: ((Data) -> Void)?, complete: ((DataSourceError?) -> Void)?) {
+        func readData(local: UInt64, count: Int) -> Data? {
             guard let readFileHandle else { return nil }
             do {
                 try readFileHandle.seek(toOffset: local)
                 if #available(iOS 13.4, *) {
-                    if let data = try readFileHandle.read(upToCount: count) {
-                        return (local, data)
-                    }
+                    let data = try readFileHandle.read(upToCount: count)
+                    return data
                 } else {
                     let data = readFileHandle.readData(ofLength: count)
-                    return (local, data)
+                    return data
                 }
             } catch _ { }
             return nil
         }
-        
-        var list: [(UInt64, Data)] = []
-        let readRange = NSRange(location: Int(offset), length: Int(length))
-        dataRanges.forEach { item in
-            let range = NSRange(location: Int(item.offset), length: Int(item.length))
-            /// 判断是否有交集
-            if let intersectionRange = readRange.intersection(range),
-               intersectionRange.length > 0,
-               let readData = readData(local: UInt64(intersectionRange.location), count: intersectionRange.length)
-            {
-                list.append(readData)
-            }
-        }
-        /// 校验缓存是否正常
-        var verify = true
+        /// 避免单次读文件过长导致内存过高问题，设置一个读取步长
+        let stepSize: UInt64 = 51200
         var currentOffset = offset
-        list.forEach { item in
-            if item.0 < currentOffset {
-                verify = false
+        var currentLength = length
+        while currentLength > stepSize {
+            if let data = readData(local: currentOffset, count: Int(stepSize)) {
+                dataBlock?(data)
+            } else {
+                complete?(.readFileError)
+                return
             }
-            currentOffset = item.0 + UInt64(item.1.count)
+            currentOffset += stepSize
+            currentLength -= stepSize
         }
-        if verify {
-            complete?(list)
+        if let data = readData(local: currentOffset, count: Int(currentLength)) {
+            dataBlock?(data)
         } else {
-            complete?([])
+            complete?(.readFileError)
+            return
         }
+        complete?(nil)
     }
     
     private func internalWriteData(_ data: Data, offset: UInt64, complete: ((Data?) -> Void)?) {
@@ -171,9 +203,9 @@ extension DataSourceCache {
         }
         var moreCount = data.count
         var dataOffset = 0
-        func stepWriteDataToFile() -> Bool {
-            let beginIndex = data.index(0, offsetBy: dataOffset)
-            let endIndex = data.index(dataOffset, offsetBy: stepSize)
+        func stepWriteDataToFile(offset: Int, length: Int) -> Bool {
+            let beginIndex = data.index(data.startIndex, offsetBy: offset)
+            let endIndex = data.index(beginIndex, offsetBy: length)
             let stepData = data[beginIndex..<endIndex]
             if #available(iOS 13.4, *) {
                 do {
@@ -184,17 +216,18 @@ extension DataSourceCache {
             } else {
                 writeFileHandle.write(stepData)
             }
-            dataOffset += stepSize
-            moreCount -= stepSize
+            
             return true
         }
         while moreCount > stepSize {
-            if !stepWriteDataToFile() {
+            if !stepWriteDataToFile(offset: dataOffset, length: moreCount) {
                 complete?(nil)
                 return
             }
+            dataOffset += stepSize
+            moreCount -= stepSize
         }
-        if !stepWriteDataToFile() {
+        if !stepWriteDataToFile(offset: dataOffset, length: moreCount) {
             complete?(nil)
             return
         }
@@ -214,12 +247,14 @@ extension DataSourceCache {
             origin.forEach { item in
                 if item.offset > currentRange.max {
                     list.append(currentRange)
+                    print("------- sava cache range: \(currentRange.offset), offset: \(currentRange.length)")
                     currentRange = item
                 } else if item.max > currentRange.max {
                     currentRange.length = item.max - currentRange.offset
                 }
             }
             list.append(currentRange)
+            print("------- sava cache range: \(currentRange.offset), offset: \(currentRange.length)")
         }
         dataRanges = list
         archiveCacheRanges()
@@ -232,8 +267,10 @@ extension DataSourceCache {
             fatalError("player datasource cache read documentDirectory error")
         }
         let fileURL = docFolderURL.appendingPathComponent("player/\(cacheKey)/cache_ranges")
-        let data = try? JSONEncoder().encode(dataRanges)
+        let encodeModel = CacheCodable(length: videoLength, ranges: dataRanges, mimeType: mimeType)
+        let data = try? JSONEncoder().encode(encodeModel)
         FileManager.default.createFile(atPath: fileURL.path, contents: data, attributes: nil)
+        print("save----: \(fileURL)")
     }
     
     private func unarchiveCacheRanges() {
@@ -241,7 +278,9 @@ extension DataSourceCache {
             fatalError("player datasource cache read documentDirectory error")
         }
         let fileURL = docFolderURL.appendingPathComponent("player/\(cacheKey)/cache_ranges")
-        let list = try? JSONDecoder().decode([CacheRange].self, from: Data(contentsOf: fileURL))
-        dataRanges = list ?? []
+        let model = try? JSONDecoder().decode(CacheCodable.self, from: Data(contentsOf: fileURL))
+        dataRanges = model?.ranges ?? []
+        videoLength = model?.length ?? 0
+        mimeType = model?.mimeType
     }
 }

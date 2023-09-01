@@ -181,6 +181,7 @@
 		E701EB5D2A9E237D00B6CCC2 /* DataSourceCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = E701EB5C2A9E237D00B6CCC2 /* DataSourceCache.swift */; };
 		E71E86F32AA0427300C43F2D /* SafeLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = E71E86F22AA0427300C43F2D /* SafeLock.swift */; };
 		E71E86F52AA0435700C43F2D /* DataSourceOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E71E86F42AA0435700C43F2D /* DataSourceOperation.swift */; };
+		E75EE0EC2AA1C11700B657B0 /* SimpleResourceLoaderDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E75EE0EB2AA1C11700B657B0 /* SimpleResourceLoaderDelegate.swift */; };
 		EA4EC4B3853541FDC946239C036D12C9 /* CwlCatchException.h in Headers */ = {isa = PBXBuildFile; fileRef = 23D45F22D81A614D41A5E03DEC6769B9 /* CwlCatchException.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		EAF96483848B6E2554CBB684AEDB8550 /* DSL.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66207B9C0B05EC210AEDE882D08E66DD /* DSL.swift */; };
 		EC420E6A714694CE306DE530FD9DDFE2 /* FBSnapshotTestController.h in Headers */ = {isa = PBXBuildFile; fileRef = BF866D22DE3D87AD2A9F01E79953E962 /* FBSnapshotTestController.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -479,6 +480,7 @@
 		E701EB5C2A9E237D00B6CCC2 /* DataSourceCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSourceCache.swift; sourceTree = "<group>"; };
 		E71E86F22AA0427300C43F2D /* SafeLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeLock.swift; sourceTree = "<group>"; };
 		E71E86F42AA0435700C43F2D /* DataSourceOperation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSourceOperation.swift; sourceTree = "<group>"; };
+		E75EE0EB2AA1C11700B657B0 /* SimpleResourceLoaderDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleResourceLoaderDelegate.swift; sourceTree = "<group>"; };
 		E832A6B1DAC31C3F7970178C4A4F3384 /* DSL.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = DSL.h; path = Sources/NimbleObjectiveC/DSL.h; sourceTree = "<group>"; };
 		EA5A40000FB3D9B248B8997A93370DBF /* Filter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Filter.swift; path = Sources/Quick/Filter.swift; sourceTree = "<group>"; };
 		EA93A22E63F32984A0186E5DC2B7501F /* CwlCatchException.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CwlCatchException.swift; path = Carthage/Checkouts/CwlCatchException/Sources/CwlCatchException/CwlCatchException.swift; sourceTree = "<group>"; };
@@ -831,6 +833,7 @@
 				E701EB5A2A9E235D00B6CCC2 /* DataSourceCenter.swift */,
 				E701EB5C2A9E237D00B6CCC2 /* DataSourceCache.swift */,
 				E71E86F42AA0435700C43F2D /* DataSourceOperation.swift */,
+				E75EE0EB2AA1C11700B657B0 /* SimpleResourceLoaderDelegate.swift */,
 			);
 			name = Player;
 			path = NFTPlayer/Classes/Player;
@@ -1433,6 +1436,7 @@
 				0994D1A87BA8FD0CDF344D37BD4ABDCF /* PlayerInterfaceView.swift in Sources */,
 				F7CBBD207DEAF0CFF8DF14A3A9F5C42A /* PlayerManager.swift in Sources */,
 				5DAE823D3ACAC6B3E975C9BA856545F6 /* PlayerPreDownloader.swift in Sources */,
+				E75EE0EC2AA1C11700B657B0 /* SimpleResourceLoaderDelegate.swift in Sources */,
 				A71312B714D1F29C629893D769953B76 /* PlayerUtil.swift in Sources */,
 				D869D05E814EA1D3A75BD34BAF209864 /* VideoPlayer.swift in Sources */,
 				165085243E4560F3C1C2028F6995D15D /* VideoRenderView.swift in Sources */,

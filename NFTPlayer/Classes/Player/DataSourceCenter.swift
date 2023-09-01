@@ -6,26 +6,67 @@
 //
 
 import Foundation
+import AVFoundation
 
 class DataSourceCenter: NSObject {
+    
+    
     static let shared = DataSourceCenter()
     
     private var operationMap: [URL: DataSourceOperation] = [:]
     private let handleQueue = DispatchQueue(label: "com.player.operation.handleQueue")
     private var session: URLSession?
     
-    func obtainData(url: URL, offset: UInt64, length: UInt64, response: ((URLResponse) -> Void)?, data: ((Data) -> Void)?, complete: ((Error?) -> Void)?) {
+    func obtainData(url: URL, loadingRequest: AVAssetResourceLoadingRequest, response: ((URLResponse?, UInt64, String?) -> Void)?, data: ((Data) -> Void)?, complete: ((Error?) -> Void)?) {
         handleQueue.async { [weak self] in
-            self?.internalObtainData(url: url, offset: offset, length: length, response: response, data: data, complete: complete)
+            self?.internalObtainData(url: url, loadingRequest: loadingRequest, response: response, data: data, complete: complete)
+        }
+    }
+    
+    func cancelRequest(url: URL) {
+        handleQueue.async {
+            self.internalCancelRequest(url: url)
+        }
+    }
+    
+    func cancelAssetLoadingRequest(url: URL, _ request: AVAssetResourceLoadingRequest) {
+        handleQueue.async {
+            self.internalCancelAssetLoadingRequest(url: url, request)
         }
     }
 }
 
 extension DataSourceCenter {
-    private func internalObtainData(url: URL, offset: UInt64, length: UInt64, response: ((URLResponse) -> Void)?, data: ((Data) -> Void)?, complete: ((Error?) -> Void)?) {
+    
+    private func internalObtainData(url: URL, loadingRequest: AVAssetResourceLoadingRequest, response: ((URLResponse?, UInt64, String?) -> Void)?, data: ((Data) -> Void)?, complete: ((Error?) -> Void)?) {
         createSession()
         let operation = obtainOperation(url: url)
-        operation.obtainData(url: url, offset: offset, length: length, reponse: response, data: data, complete: complete)
+        operation.obtainData(for: loadingRequest, response: { res, length, mimeType in
+            PlayerUtil.doInMainThread {
+                response?(res, length, mimeType)
+            }
+        }, data: { d in
+            PlayerUtil.doInMainThread {
+                data?(d)
+            }
+        }, complete: { e in
+            PlayerUtil.doInMainThread {
+                complete?(e)
+            }
+        })
+
+    }
+    
+    private func internalCancelRequest(url: URL) {
+        if let op = operationMap.removeValue(forKey: url) {
+            op.cancelAll()
+        }
+    }
+    
+    private func internalCancelAssetLoadingRequest(url: URL, _ request: AVAssetResourceLoadingRequest) {
+        if let op = operationMap[url] {
+            op.cancelLoadingRequest(request)
+        }
     }
     
     private func createSession() {
@@ -35,9 +76,9 @@ extension DataSourceCenter {
         let config = URLSessionConfiguration.default
         config.httpShouldSetCookies = true
         config.httpShouldUsePipelining = false
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.networkServiceType = .video
+        config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         config.allowsCellularAccess = true
-        config.urlCache = nil
         let delegateQueue = OperationQueue()
         delegateQueue.maxConcurrentOperationCount = 1
         delegateQueue.underlyingQueue = handleQueue
@@ -49,7 +90,7 @@ extension DataSourceCenter {
         if let operation = operationMap[url] {
             return operation
         }
-        let operation = DataSourceOperation(session: session, url: url)
+        let operation = DataSourceOperation(session: session, url: url, queue: handleQueue)
         operationMap[url] = operation
         return operation
     }

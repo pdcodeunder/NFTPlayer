@@ -50,9 +50,11 @@ class VideoPlayer: NSObject {
     private let playerItem: AVPlayerItem
     private var timeObserver: Any?
     private var controlStatus: ControlStatus = .initialize
+    private let resourceLoader: AssetResourceLoader
     private var playStatus: PlayStatus = .initialize {
         didSet {
             delegate?.videoPlayerPlayStatusChanged(player: self, status: playStatus)
+            print("-------player status: \(playStatus)")
         }
     }
     private var currentTime: TimeInterval = 0 {
@@ -76,7 +78,22 @@ class VideoPlayer: NSObject {
     init(url: URL, delegate: VideoPlayerDelegate?) {
         self.delegate = delegate
         self.url = url
-        urlAsset = AVURLAsset(url: url)
+//        let loader = SimpleResourceLoaderDelegate(withURL: url)
+//        urlAsset = AVURLAsset(url: loader.streamingAssetURL)
+//        loader.completion = { localFileURL in
+//            if let localFileURL = localFileURL {
+//                print("Media file saved to: \(localFileURL)")
+//            } else {
+//                print("Failed to download media file.")
+//            }
+//        }
+//        resourceLoader = loader
+        
+        let loader = AssetResourceLoader(url: url)
+        urlAsset = AVURLAsset(url: loader.playerUrl ?? url)
+        resourceLoader = loader
+        
+        urlAsset.resourceLoader.setDelegate(loader, queue: .main)
         playerItem = AVPlayerItem(asset: urlAsset, automaticallyLoadedAssetKeys: ["duration"])
         
         player = AVPlayer()
@@ -295,14 +312,14 @@ extension VideoPlayer {
     
     /// 卡顿
     @objc private func playbackStalledNotification() {
-        doInMainThread { [weak self] in
+        PlayerUtil.doInMainThread { [weak self] in
             self?.playerChangedStalled()
         }
     }
     
     /// 播放失败
     @objc private func failedToPlayToEndTimeNotification() {
-        doInMainThread { [weak self] in
+        PlayerUtil.doInMainThread { [weak self] in
             self?.failedToPlay()
         }
     }
@@ -346,11 +363,4 @@ extension VideoPlayer {
     }
 }
 
-// MARK: - util
-extension VideoPlayer {
-    func doInMainThread(_ block: @escaping (() -> Void)) {
-        if Thread.isMainThread { block() }
-        else { DispatchQueue.main.async { block() } }
-    }
-}
 
