@@ -11,7 +11,6 @@ import CoreServices
 
 class AssetResourceLoader: NSObject {
     let url: URL
-    var paserResponse = false
     
     init(url: URL) {
         self.url = url
@@ -41,7 +40,6 @@ extension AssetResourceLoader {
             }
             return contentType
         }
-        paserResponse = true
         devPrint("处理SourceCenter响应 length: \(length), mimeType: \(mimeType)")
         request.contentInformationRequest?.isByteRangeAccessSupported = true
         if let contentType = UTTypeCreatePreferredIdentifierForTag(kUTTagClassMIMEType, mimeType as CFString, nil) {
@@ -63,29 +61,45 @@ extension AssetResourceLoader {
 
 extension AssetResourceLoader: AVAssetResourceLoaderDelegate {
     func resourceLoader(_ resourceLoader: AVAssetResourceLoader, shouldWaitForLoadingOfRequestedResource loadingRequest: AVAssetResourceLoadingRequest) -> Bool {
-        devPrint("接收到ResourceLoader数据请求: \(loadingRequest)")
-        DataSourceCenter.shared.obtainData(url: url, loadingRequest: loadingRequest) { [weak self] (responce, length, mimeType) in
-            devPrint("接收到SourceCenter响应 length: \(length), mimeType: \(mimeType)")
-            guard self?.checkLoadingRequestIsValid(request: loadingRequest) == true else { return }
-            self?.fillInfoRequest(request: loadingRequest, response: responce, length: length, mimeType: mimeType ?? "video/mp4")
-        } data: { [weak self] (data) in
-            devPrint("接收到SourceCenter数据 data: \(data.count))")
-            guard self?.checkLoadingRequestIsValid(request: loadingRequest) == true else { return }
-            devPrint("填充SourceCenter数据 data: \(data.count))")
-            loadingRequest.dataRequest?.respond(with: data)
-        } complete: { [weak self] (error) in
-            devPrint("接收到SourceCenter完成: \(error))")
-            guard self?.checkLoadingRequestIsValid(request: loadingRequest) == true else { return }
-            if let _ = error {
-                devPrint("处理SourceCenter失败: \(error))")
-                self?.paserResponse = false
-                loadingRequest.finishLoading(with: NSError(domain: "数据请求失败", code: 404))
-            } else {
-                devPrint("处理SourceCenter完成")
-                loadingRequest.finishLoading()
-            }
+        /// 请求视频信息
+        if let _ = loadingRequest.contentInformationRequest {
+            devPrint("接收到视频信息请求: \(loadingRequest)")
+            DataSourceCenter.shared.obtainContentInformation(url: url, identifer: loadingRequest, complete: { [weak self] (response, length, mimeType) in
+                devPrint("接收到SourceCenter响应 length: \(length), mimeType: \(mimeType)")
+                guard self?.checkLoadingRequestIsValid(request: loadingRequest) == true else { return }
+                if length > 0 {
+                    self?.fillInfoRequest(request: loadingRequest, response: response, length: length, mimeType: mimeType ?? "video/mp4")
+                    loadingRequest.finishLoading()
+                } else {
+                    loadingRequest.finishLoading(with: NSError(domain: "数据请求失败", code: 404))
+                }
+            })
+            return true
         }
-        return true
+        /// 请求视频数据
+        else if let _ = loadingRequest.dataRequest {
+            devPrint("接收到视频数据请求: \(loadingRequest)")
+            DataSourceCenter.shared.obtainData(url: url, loadingRequest: loadingRequest, data: { [weak self] (data) in
+                devPrint("接收到SourceCenter数据 data: \(data.count))")
+                guard self?.checkLoadingRequestIsValid(request: loadingRequest) == true else { return }
+                devPrint("填充SourceCenter数据 data: \(data.count))")
+                loadingRequest.dataRequest?.respond(with: data)
+            }, complete: { [weak self] (error) in
+                devPrint("接收到SourceCenter完成: \(error))")
+                guard self?.checkLoadingRequestIsValid(request: loadingRequest) == true else { return }
+                if let _ = error {
+                    devPrint("处理SourceCenter失败: \(error))")
+                    loadingRequest.finishLoading(with: NSError(domain: "数据请求失败", code: 500))
+                } else {
+                    devPrint("处理SourceCenter完成")
+                    loadingRequest.finishLoading()
+                }
+            })
+            return true
+        }
+        /// 不识别请求，丢弃
+        loadingRequest.finishLoading(with: NSError(domain: "不识别请求，丢弃", code: 404))
+        return false
     }
     
     func resourceLoader(_ resourceLoader: AVAssetResourceLoader, didCancel loadingRequest: AVAssetResourceLoadingRequest) {

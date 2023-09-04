@@ -9,17 +9,20 @@ import Foundation
 import AVFoundation
 
 class DataSourceCenter: NSObject {
-    
-    
     static let shared = DataSourceCenter()
-    
-    private var operationMap: [URL: DataSourceOperation] = [:]
+    private var operationMap: [URL: DataSourceUrlOperation] = [:]
     private let handleQueue = DispatchQueue(label: "com.player.operation.handleQueue")
     private var session: URLSession?
     
-    func obtainData(url: URL, loadingRequest: AVAssetResourceLoadingRequest, response: ((URLResponse?, UInt64, String?) -> Void)?, data: ((Data) -> Void)?, complete: ((Error?) -> Void)?) {
+    func obtainContentInformation(url: URL, identifer: AnyObject, complete: ((URLResponse?, UInt64, String?) -> Void)?) {
         handleQueue.async { [weak self] in
-            self?.internalObtainData(url: url, loadingRequest: loadingRequest, response: response, data: data, complete: complete)
+            self?.internalObtainContentInformation(url: url, identifer: identifer, complete: complete)
+        }
+    }
+    
+    func obtainData(url: URL, loadingRequest: AVAssetResourceLoadingRequest, data: ((Data) -> Void)?, complete: ((Error?) -> Void)?) {
+        handleQueue.async { [weak self] in
+            self?.internalObtainData(url: url, loadingRequest: loadingRequest, data: data, complete: complete)
         }
     }
     
@@ -37,15 +40,20 @@ class DataSourceCenter: NSObject {
 }
 
 extension DataSourceCenter {
-    
-    private func internalObtainData(url: URL, loadingRequest: AVAssetResourceLoadingRequest, response: ((URLResponse?, UInt64, String?) -> Void)?, data: ((Data) -> Void)?, complete: ((Error?) -> Void)?) {
+    private func internalObtainContentInformation(url: URL, identifer: AnyObject, complete: ((URLResponse?, UInt64, String?) -> Void)?) {
         createSession()
         let operation = obtainOperation(url: url)
-        operation.obtainData(for: loadingRequest, response: { res, length, mimeType in
+        operation.obtainContentInformation(identifer: identifer) { (r, l, m) in
             PlayerUtil.doInMainThread {
-                response?(res, length, mimeType)
+                complete?(r, l, m)
             }
-        }, data: { d in
+        }
+    }
+    
+    private func internalObtainData(url: URL, loadingRequest: AVAssetResourceLoadingRequest, data: ((Data) -> Void)?, complete: ((Error?) -> Void)?) {
+        createSession()
+        let operation = obtainOperation(url: url)
+        operation.obtainData(for: loadingRequest, data: { d in
             PlayerUtil.doInMainThread {
                 data?(d)
             }
@@ -54,7 +62,6 @@ extension DataSourceCenter {
                 complete?(e)
             }
         })
-
     }
     
     private func internalCancelRequest(url: URL) {
@@ -86,11 +93,11 @@ extension DataSourceCenter {
         session = URLSession(configuration: config, delegate: self, delegateQueue: delegateQueue)
     }
     
-    private func obtainOperation(url: URL) -> DataSourceOperation {
+    private func obtainOperation(url: URL) -> DataSourceUrlOperation {
         if let operation = operationMap[url] {
             return operation
         }
-        let operation = DataSourceOperation(session: session, url: url, queue: handleQueue)
+        let operation = DataSourceUrlOperation(session: session, url: url, queue: handleQueue)
         operationMap[url] = operation
         return operation
     }

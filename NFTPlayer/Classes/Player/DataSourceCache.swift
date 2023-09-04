@@ -32,6 +32,8 @@ enum DataSourceError: Error {
     case readFileError
     case network
     case requestIsEmpty
+    case requestError
+    case cancel
 }
 
 class DataSourceCache {
@@ -66,9 +68,21 @@ class DataSourceCache {
         unarchiveCacheRanges()
     }
     
-    func readData(offset: UInt64, length: UInt64, data: ((Data) -> Void)?, complete: ((DataSourceError?) -> Void)?) {
+    func updateVideoLength(_ length: UInt64, mimeType: String?) {
         handleQueue.async { [weak self] in
-            self?.internalReadData(offset: offset, length: length, data: data, complete: complete)
+            self?.internalUpdateVideoLength(length, mimeType: mimeType)
+        }
+    }
+    
+    func findData(offset: UInt64, length: UInt64, onQueue: DispatchQueue?, complete: ((UInt64, UInt64) -> Void)?) {
+        handleQueue.async { [weak self] in
+            self?.internalFindData(offset: offset, length: length, onQueue: onQueue, complete: complete)
+        }
+    }
+    
+    func readData(offset: UInt64, length: UInt64, onQueue: DispatchQueue?, data: ((Data) -> Void)?, complete: ((DataSourceError?) -> Void)?) {
+        handleQueue.async { [weak self] in
+            self?.internalReadData(offset: offset, length: length, onQueue: onQueue, data: data, complete: complete)
         }
     }
     
@@ -101,12 +115,70 @@ extension DataSourceCache {
         }
     }
     
-    private func internalReadData(offset: UInt64, length: UInt64, data: ((Data) -> Void)?, complete: ((DataSourceError?) -> Void)?) {
+    func internalUpdateVideoLength(_ length: UInt64, mimeType: String?) {
+        self.videoLength = length
+        self.mimeType = mimeType
+        archiveCacheRanges()
+    }
+    
+    func internalFindData(offset: UInt64, length: UInt64, onQueue: DispatchQueue?, complete: ((UInt64, UInt64) -> Void)?) {
+        devPrint("缓存层：查询缓存是否存在 offset: \(offset), length: \(length)")
         guard videoLength > 10 else {
-            complete?(.noCache)
+            if let onQueue {
+                onQueue.async {
+                    complete?(0, 0)
+                }
+            } else {
+                complete?(0, 0)
+            }
             return
         }
-        print("-------read data offset: \(offset), length: \(length)")
+        var cacheLength: UInt64 = 0
+        var cacheOffset: UInt64 = 0
+        dataRanges.forEach { item in
+            if cacheLength == 0 {
+                if item.offset <= offset {
+                    if item.max > offset {
+                        cacheLength = min(item.max - offset, length)
+                        cacheOffset = offset
+                    }
+                } else if item.offset < offset + length {
+                    cacheOffset = item.offset
+                    cacheLength = min(length - item.offset, item.length)
+                }
+            }
+        }
+        devPrint("缓存层：查询到缓存数据 offset: \(cacheOffset), length: \(cacheLength)")
+        printCurrentDataRanges()
+        if let onQueue {
+            onQueue.async {
+                complete?(cacheOffset, cacheLength)
+            }
+        } else {
+            complete?(cacheOffset, cacheLength)
+        }
+    }
+    
+    private func printCurrentDataRanges() {
+        devPrint("缓存层：开始打印缓存数据源信息----------")
+        dataRanges.forEach { range in
+            devPrint("缓存层：range offset: \(range.offset), length: \(range.length)")
+        }
+        devPrint("缓存层：结束打印缓存数据源信息----------")
+    }
+    
+    private func internalReadData(offset: UInt64, length: UInt64, onQueue: DispatchQueue?, data: ((Data) -> Void)?, complete: ((DataSourceError?) -> Void)?) {
+        guard videoLength > 10 else {
+            if let onQueue {
+                onQueue.async {
+                    complete?(.noCache)
+                }
+            } else {
+                complete?(.noCache)
+            }
+            return
+        }
+        devPrint("缓存层：开始读取缓存  offset：\(offset), length: \(length)")
         var hasCache = false
         dataRanges.forEach { item in
             if item.offset <= offset, item.max >= offset + length {
@@ -114,22 +186,31 @@ extension DataSourceCache {
             }
         }
         if hasCache {
-            stepReadFileData(offset: offset, length: length, dataBlock: data, complete: complete)
+            stepReadFileData(offset: offset, length: length, onQueue: onQueue, dataBlock: data, complete: complete)
         } else {
-            complete?(.noCache)
+            devPrint("缓存层：不存在缓存  offset：\(offset), length: \(length)")
+            if let onQueue {
+                onQueue.async {
+                    complete?(.noCache)
+                }
+            } else {
+                complete?(.noCache)
+            }
         }
     }
     
-    private func stepReadFileData(offset: UInt64, length: UInt64, dataBlock: ((Data) -> Void)?, complete: ((DataSourceError?) -> Void)?) {
+    private func stepReadFileData(offset: UInt64, length: UInt64, onQueue: DispatchQueue?, dataBlock: ((Data) -> Void)?, complete: ((DataSourceError?) -> Void)?) {
         func readData(local: UInt64, count: Int) -> Data? {
             guard let readFileHandle else { return nil }
             do {
                 try readFileHandle.seek(toOffset: local)
                 if #available(iOS 13.4, *) {
                     let data = try readFileHandle.read(upToCount: count)
+                    devPrint("缓存层：读取到缓存  offset：\(local), length: \(count)")
                     return data
                 } else {
                     let data = readFileHandle.readData(ofLength: count)
+                    devPrint("缓存层：读取到缓存  offset：\(local), length: \(count)")
                     return data
                 }
             } catch _ { }
@@ -141,21 +222,51 @@ extension DataSourceCache {
         var currentLength = length
         while currentLength > stepSize {
             if let data = readData(local: currentOffset, count: Int(stepSize)) {
-                dataBlock?(data)
+                if let onQueue {
+                    onQueue.async {
+                        dataBlock?(data)
+                    }
+                } else {
+                    dataBlock?(data)
+                }
             } else {
-                complete?(.readFileError)
+                if let onQueue {
+                    onQueue.async {
+                        complete?(.readFileError)
+                    }
+                } else {
+                    complete?(.readFileError)
+                }
                 return
             }
             currentOffset += stepSize
             currentLength -= stepSize
         }
         if let data = readData(local: currentOffset, count: Int(currentLength)) {
-            dataBlock?(data)
+            if let onQueue {
+                onQueue.async {
+                    dataBlock?(data)
+                }
+            } else {
+                dataBlock?(data)
+            }
         } else {
-            complete?(.readFileError)
+            if let onQueue {
+                onQueue.async {
+                    complete?(.readFileError)
+                }
+            } else {
+                complete?(.readFileError)
+            }
             return
         }
-        complete?(nil)
+        if let onQueue {
+            onQueue.async {
+                complete?(nil)
+            }
+        } else {
+            complete?(nil)
+        }
     }
     
     private func internalWriteData(_ data: Data, offset: UInt64, complete: ((Data?) -> Void)?) {
@@ -163,6 +274,7 @@ extension DataSourceCache {
             complete?(nil)
             return
         }
+        devPrint("缓存层：开始写入缓存  offset：\(offset), length: \(data.count)")
         let fileEndOffset = writeFileHandle.seekToEndOfFile()
         /// 需要写入的位置超过当前句柄内容最大长度，需要先用空白内容填充
         /// 避免单次写入过长失败问题，设置一个写入步长
@@ -231,6 +343,7 @@ extension DataSourceCache {
             complete?(nil)
             return
         }
+        devPrint("缓存层：写入缓存完成  offset：\(offset), length: \(data.count)")
         dataRanges.append(CacheRange(offset: offset, length: UInt64(data.count)))
         clearUpCacheRangesAndSave()
     }
@@ -247,14 +360,14 @@ extension DataSourceCache {
             origin.forEach { item in
                 if item.offset > currentRange.max {
                     list.append(currentRange)
-                    print("------- sava cache range: \(currentRange.offset), offset: \(currentRange.length)")
+                    devPrint("缓存层：写入缓存range offset： \(currentRange.offset), length: \(currentRange.length)")
                     currentRange = item
                 } else if item.max > currentRange.max {
                     currentRange.length = item.max - currentRange.offset
                 }
             }
             list.append(currentRange)
-            print("------- sava cache range: \(currentRange.offset), offset: \(currentRange.length)")
+            devPrint("缓存层：写入缓存range offset： \(currentRange.offset), length: \(currentRange.length)")
         }
         dataRanges = list
         archiveCacheRanges()
@@ -270,7 +383,6 @@ extension DataSourceCache {
         let encodeModel = CacheCodable(length: videoLength, ranges: dataRanges, mimeType: mimeType)
         let data = try? JSONEncoder().encode(encodeModel)
         FileManager.default.createFile(atPath: fileURL.path, contents: data, attributes: nil)
-        print("save----: \(fileURL)")
     }
     
     private func unarchiveCacheRanges() {
