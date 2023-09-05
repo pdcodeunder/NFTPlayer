@@ -14,6 +14,7 @@ class AssetResourceLoader: NSObject {
     
     init(url: URL) {
         self.url = url
+        DataSourceCenter.shared.cancelRequest(url: url)
     }
     
     deinit {
@@ -40,14 +41,14 @@ extension AssetResourceLoader {
             }
             return contentType
         }
-        devPrint("处理SourceCenter响应 length: \(length), mimeType: \(mimeType)")
+        devPrint("url: \(url), 处理SourceCenter响应 length: \(length), mimeType: \(mimeType)")
         request.contentInformationRequest?.isByteRangeAccessSupported = true
         if let contentType = UTTypeCreatePreferredIdentifierForTag(kUTTagClassMIMEType, mimeType as CFString, nil) {
             let contentTypeStr = contentType.takeRetainedValue() as String
             request.contentInformationRequest?.contentType = convertTypeIfNeeded(contentType: contentTypeStr)
         }
         request.contentInformationRequest?.contentLength = Int64(length)
-        devPrint("处理SourceCenter响应完成:\(request)")
+        devPrint("url: \(url), 处理SourceCenter响应完成:\(request)")
     }
     
     /// 校验loadingRequest的有效性
@@ -63,9 +64,9 @@ extension AssetResourceLoader: AVAssetResourceLoaderDelegate {
     func resourceLoader(_ resourceLoader: AVAssetResourceLoader, shouldWaitForLoadingOfRequestedResource loadingRequest: AVAssetResourceLoadingRequest) -> Bool {
         /// 请求视频信息
         if let _ = loadingRequest.contentInformationRequest {
-            devPrint("接收到视频信息请求: \(loadingRequest)")
+            devPrint("url: \(url), 接收到视频信息请求: \(loadingRequest)")
             DataSourceCenter.shared.obtainContentInformation(url: url, identifer: loadingRequest, complete: { [weak self] (response, length, mimeType) in
-                devPrint("接收到SourceCenter响应 length: \(length), mimeType: \(mimeType)")
+                devPrint("url: \((self?.url)), 接收到SourceCenter响应 length: \(length), mimeType: \(mimeType)")
                 guard self?.checkLoadingRequestIsValid(request: loadingRequest) == true else { return }
                 if length > 0 {
                     self?.fillInfoRequest(request: loadingRequest, response: response, length: length, mimeType: mimeType ?? "video/mp4")
@@ -78,20 +79,20 @@ extension AssetResourceLoader: AVAssetResourceLoaderDelegate {
         }
         /// 请求视频数据
         else if let _ = loadingRequest.dataRequest {
-            devPrint("接收到视频数据请求: \(loadingRequest)")
+            devPrint("url: \(url), 接收到视频数据请求: \(loadingRequest)")
             DataSourceCenter.shared.obtainData(url: url, loadingRequest: loadingRequest, data: { [weak self] (data) in
-                devPrint("接收到SourceCenter数据 data: \(data.count))")
+                devPrint("url: \((self?.url)), 接收到SourceCenter数据 data: \(data.count))")
                 guard self?.checkLoadingRequestIsValid(request: loadingRequest) == true else { return }
-                devPrint("填充SourceCenter数据 data: \(data.count))")
+                devPrint("url: \((self?.url)), 填充SourceCenter数据 data: \(data.count))")
                 loadingRequest.dataRequest?.respond(with: data)
             }, complete: { [weak self] (error) in
-                devPrint("接收到SourceCenter完成: \(error))")
+                devPrint("url: \((self?.url)), 接收到SourceCenter完成: \(error))")
                 guard self?.checkLoadingRequestIsValid(request: loadingRequest) == true else { return }
                 if let _ = error {
-                    devPrint("处理SourceCenter失败: \(error))")
+                    devPrint("url: \((self?.url)), 处理SourceCenter失败: \(error))")
                     loadingRequest.finishLoading(with: NSError(domain: "数据请求失败", code: 500))
                 } else {
-                    devPrint("处理SourceCenter完成")
+                    devPrint("url: \((self?.url)), 处理SourceCenter完成")
                     loadingRequest.finishLoading()
                 }
             })
@@ -103,7 +104,7 @@ extension AssetResourceLoader: AVAssetResourceLoaderDelegate {
     }
     
     func resourceLoader(_ resourceLoader: AVAssetResourceLoader, didCancel loadingRequest: AVAssetResourceLoadingRequest) {
-        devPrint("接收到ResourceLoader取消请求: \(loadingRequest)")
+        devPrint("url: \(url), 接收到ResourceLoader取消请求: \(loadingRequest)")
         DataSourceCenter.shared.cancelAssetLoadingRequest(url: url, loadingRequest)
     }
 }

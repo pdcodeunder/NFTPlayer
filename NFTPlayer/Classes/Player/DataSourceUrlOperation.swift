@@ -48,7 +48,7 @@ class DataSourceUrlOperation {
     }
     
     func cancelLoadingRequest(_ request: AVAssetResourceLoadingRequest) {
-        devPrint("网络层：接收到取消指令：\(operationSet)")
+        devPrint("url: \(url), 网络层：接收到取消指令：\(operationSet)")
         let list = operationSet.filter({ $0.requestIdentifer === request })
         operationSet.removeAll { item in
             if item.requestIdentifer === request {
@@ -56,7 +56,7 @@ class DataSourceUrlOperation {
             }
             return false
         }
-        devPrint("网络层：operationSet移除完成：\(operationSet)")
+        devPrint("url: \(url), 网络层：operationSet移除完成：\(operationSet)")
         list.forEach({ $0.cancel() })
     }
     
@@ -76,7 +76,7 @@ class DataSourceUrlOperation {
     }
     
     func obtainData(for loadingRequest: AVAssetResourceLoadingRequest, data: ((Data) -> Void)?, complete: ((Error?) -> Void)?) {
-        devPrint("网络层：开始获取视频数据")
+        devPrint("url: \(url), 网络层：开始获取视频数据")
         guard let dataRequest = loadingRequest.dataRequest else {
             complete?(DataSourceError.requestError)
             return
@@ -103,5 +103,21 @@ class DataSourceUrlOperation {
     
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         operationSet.forEach({ $0.urlSession(session, task: task, didCompleteWithError: error) })
+    }
+}
+
+extension DataSourceUrlOperation {
+    func preload(offset: UInt64, length: UInt64) {
+        guard operationSet.isEmpty else {
+            return
+        }
+        let obj = NSObject()
+        let operation = DataSourceDataRequestOperation(operationQueue: operationQueue, session: session, cache: cache, url: url, requestIdentifer: obj, offset: offset, length: length, dataBlock: nil, complete: { [weak self] (error) in
+            self?.operationSet.removeAll(where: { item in
+                return item.requestIdentifer === obj
+            })
+        })
+        operation.resume()
+        operationSet.append(operation)
     }
 }

@@ -102,7 +102,7 @@ extension DataSourceCache {
         let fileName = self.url.lastPathComponent
         let fileURL = pathUrl.appendingPathComponent(fileName)
         let path = fileURL.path
-        devPrint("------path: \(path)")
+        devPrint("url: \(url), ------path: \(path)")
         if FileManager.default.fileExists(atPath: path) {
             writeFileHandle = try? FileHandle(forUpdating: fileURL)
             readFileHandle = try? FileHandle(forUpdating: fileURL)
@@ -122,7 +122,7 @@ extension DataSourceCache {
     }
     
     func internalFindData(offset: UInt64, length: UInt64, onQueue: DispatchQueue?, complete: ((UInt64, UInt64) -> Void)?) {
-        devPrint("缓存层：查询缓存是否存在 offset: \(offset), length: \(length)")
+        devPrint("url: \(url), 缓存层：查询缓存是否存在 offset: \(offset), length: \(length)")
         guard videoLength > 10 else {
             if let onQueue {
                 onQueue.async {
@@ -148,7 +148,7 @@ extension DataSourceCache {
                 }
             }
         }
-        devPrint("缓存层：查询到缓存数据 offset: \(cacheOffset), length: \(cacheLength)")
+        devPrint("url: \(url), 缓存层：查询到缓存数据 offset: \(cacheOffset), length: \(cacheLength)")
         printCurrentDataRanges()
         if let onQueue {
             onQueue.async {
@@ -160,11 +160,11 @@ extension DataSourceCache {
     }
     
     private func printCurrentDataRanges() {
-        devPrint("缓存层：开始打印缓存数据源信息----------")
+        devPrint("url: \(url), 缓存层：开始打印缓存数据源信息----------")
         dataRanges.forEach { range in
-            devPrint("缓存层：range offset: \(range.offset), length: \(range.length)")
+            devPrint("url: \(url), 缓存层：range offset: \(range.offset), length: \(range.length)")
         }
-        devPrint("缓存层：结束打印缓存数据源信息----------")
+        devPrint("url: \(url), 缓存层：结束打印缓存数据源信息----------")
     }
     
     private func internalReadData(offset: UInt64, length: UInt64, onQueue: DispatchQueue?, data: ((Data) -> Void)?, complete: ((DataSourceError?) -> Void)?) {
@@ -178,7 +178,7 @@ extension DataSourceCache {
             }
             return
         }
-        devPrint("缓存层：开始读取缓存  offset：\(offset), length: \(length)")
+        devPrint("url: \(url), 缓存层：开始读取缓存  offset：\(offset), length: \(length)")
         var hasCache = false
         dataRanges.forEach { item in
             if item.offset <= offset, item.max >= offset + length {
@@ -188,7 +188,7 @@ extension DataSourceCache {
         if hasCache {
             stepReadFileData(offset: offset, length: length, onQueue: onQueue, dataBlock: data, complete: complete)
         } else {
-            devPrint("缓存层：不存在缓存  offset：\(offset), length: \(length)")
+            devPrint("url: \(url), 缓存层：不存在缓存  offset：\(offset), length: \(length)")
             if let onQueue {
                 onQueue.async {
                     complete?(.noCache)
@@ -206,11 +206,11 @@ extension DataSourceCache {
                 try readFileHandle.seek(toOffset: local)
                 if #available(iOS 13.4, *) {
                     let data = try readFileHandle.read(upToCount: count)
-                    devPrint("缓存层：读取到缓存  offset：\(local), length: \(count)")
+                    devPrint("url: \(url), 缓存层：读取到缓存  offset：\(local), length: \(count)")
                     return data
                 } else {
                     let data = readFileHandle.readData(ofLength: count)
-                    devPrint("缓存层：读取到缓存  offset：\(local), length: \(count)")
+                    devPrint("url: \(url), 缓存层：读取到缓存  offset：\(local), length: \(count)")
                     return data
                 }
             } catch _ { }
@@ -274,7 +274,7 @@ extension DataSourceCache {
             complete?(nil)
             return
         }
-        devPrint("缓存层：开始写入缓存  offset：\(offset), length: \(data.count)")
+        devPrint("url: \(url), 缓存层：开始写入缓存  offset：\(offset), length: \(data.count)")
         let fileEndOffset = writeFileHandle.seekToEndOfFile()
         /// 需要写入的位置超过当前句柄内容最大长度，需要先用空白内容填充
         /// 避免单次写入过长失败问题，设置一个写入步长
@@ -343,7 +343,7 @@ extension DataSourceCache {
             complete?(nil)
             return
         }
-        devPrint("缓存层：写入缓存完成  offset：\(offset), length: \(data.count)")
+        devPrint("url: \(url), 缓存层：写入缓存完成  offset：\(offset), length: \(data.count)")
         dataRanges.append(CacheRange(offset: offset, length: UInt64(data.count)))
         clearUpCacheRangesAndSave()
     }
@@ -360,14 +360,14 @@ extension DataSourceCache {
             origin.forEach { item in
                 if item.offset > currentRange.max {
                     list.append(currentRange)
-                    devPrint("缓存层：写入缓存range offset： \(currentRange.offset), length: \(currentRange.length)")
+                    devPrint("url: \(url), 缓存层：写入缓存range offset： \(currentRange.offset), length: \(currentRange.length)")
                     currentRange = item
                 } else if item.max > currentRange.max {
                     currentRange.length = item.max - currentRange.offset
                 }
             }
             list.append(currentRange)
-            devPrint("缓存层：写入缓存range offset： \(currentRange.offset), length: \(currentRange.length)")
+            devPrint("url: \(url), 缓存层：写入缓存range offset： \(currentRange.offset), length: \(currentRange.length)")
         }
         dataRanges = list
         archiveCacheRanges()

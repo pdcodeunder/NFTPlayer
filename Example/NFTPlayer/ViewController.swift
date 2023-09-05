@@ -19,6 +19,7 @@ class ViewController: UIViewController {
         v.frame = CGRect(x: 0, y: 120, width: view.bounds.width, height: 300)
         view.addSubview(v)
         
+//    http://vt1.doubanio.com/202001022001/7264e07afc6d8347c15f61c247c36f0e/view/movie/M/302100358.mp4
         PlayerManager.shared.play(media: "http://vt1.doubanio.com/202001022001/7264e07afc6d8347c15f61c247c36f0e/view/movie/M/302100358.mp4", to: v)
     }
 

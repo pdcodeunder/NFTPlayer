@@ -122,3 +122,20 @@ extension DataSourceCenter: URLSessionDataDelegate {
         operation.urlSession(session, task: task, didCompleteWithError: error)
     }
 }
+
+extension DataSourceCenter {
+    func preload(url: URL, offset: UInt64, length: UInt64) {
+        handleQueue.async { [weak self] in
+            self?.internalPreload(url: url, offset: offset, length: length)
+        }
+    }
+    
+    private func internalPreload(url: URL, offset: UInt64, length: UInt64) {
+        if let _ = operationMap[url] {
+            return
+        }
+        createSession()
+        let operation = obtainOperation(url: url)
+        operation.preload(offset: offset, length: length)
+    }
+}

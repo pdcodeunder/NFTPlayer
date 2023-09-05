@@ -35,7 +35,7 @@ class DataSourceDataRequestOperation: DataSourceRequestOperationProtocol {
     }
     
     func resume() {
-        devPrint("网络层：DataRequest开始获取视频数据")
+        devPrint("url: \(url), 网络层：DataRequest开始获取视频数据")
         checkDataSourcePosition()
     }
     
@@ -65,7 +65,7 @@ class DataSourceDataRequestOperation: DataSourceRequestOperationProtocol {
 
 extension DataSourceDataRequestOperation {
     private func checkDataSourcePosition() {
-        devPrint("网络层：开始检查是否需要从网络获取视频")
+        devPrint("url: \(url), 网络层：开始检查是否需要从网络获取视频")
         guard currentOffset < offset + length else {
             complete?(nil)
             return
@@ -77,44 +77,44 @@ extension DataSourceDataRequestOperation {
     }
     
     private func findDataFromCacheResponse(cacheOffset: UInt64, cacheLength: UInt64) {
-        devPrint("网络层：查询到到缓存数据 cacheOffset: \(cacheOffset), cacheLength: \(cacheLength)")
+        devPrint("url: \(url), 网络层：查询到到缓存数据 cacheOffset: \(cacheOffset), cacheLength: \(cacheLength)")
         /// 读取到缓存数据
         if cacheLength > 0 {
             /// 存在后面的缓存数据
             if cacheOffset > currentOffset {
-                devPrint("网络层：存在后面的缓存数据")
+                devPrint("url: \(url), 网络层：存在后面的缓存数据")
                 requestDataFromNetwork(offset: currentOffset, length: cacheOffset - currentOffset)
             }
             /// 存在缓存数据
             else if cacheOffset == currentOffset {
-                devPrint("网络层：存在缓存数据")
+                devPrint("url: \(url), 网络层：存在缓存数据")
                 requestDataFromCache(offset: cacheOffset, length: cacheLength)
             }
             /// 缓存解析出错，走网络请求
             else {
-                devPrint("网络层：缓存解析出错，走网络请求")
+                devPrint("url: \(url), 网络层：缓存解析出错，走网络请求")
                 requestDataFromNetwork(offset: currentOffset, length: offset + length - currentOffset)
             }
         }
         /// 当前数据段不存在缓存
         else {
-            devPrint("网络层：当前数据段不存在缓存")
+            devPrint("url: \(url), 网络层：当前数据段不存在缓存")
             requestDataFromNetwork(offset: currentOffset, length: offset + length - currentOffset)
         }
     }
     
     private func requestDataFromCache(offset: UInt64, length: UInt64) {
-        devPrint("网络层：开始从缓存中读取数据offset：\(offset), length: \(length)")
+        devPrint("url: \(url), 网络层：开始从缓存中读取数据offset：\(offset), length: \(length)")
         let coffset = currentOffset
         cache.readData(offset: offset, length: length, onQueue: operationQueue) { [weak self] (d) in
-            devPrint("网络层：从缓存获取到数据offset: \(self?.currentOffset), length: \(d.count)")
+            devPrint("url: \(self?.url), 网络层：从缓存获取到数据offset: \(self?.currentOffset), length: \(d.count)")
             self?.dataBlock?(d)
             self?.currentOffset += UInt64(d.count)
         } complete: { [weak self] (error) in
             guard let self else {
                 return
             }
-            devPrint("网络层：从缓存获取到数据完成error: \(error)")
+            devPrint("url: \(self.url), 网络层：从缓存获取到数据完成error: \(error)")
             if error == nil, self.currentOffset > coffset {
                 self.checkDataSourcePosition()
             } else {
@@ -126,30 +126,73 @@ extension DataSourceDataRequestOperation {
     private func requestDataFromNetwork(offset: UInt64, length: UInt64) {
         guard offset + length <= self.offset + self.length else {
             complete?(DataSourceError.network)
-            devPrint("网络层：offset: \(offset), length: \(length), request offset: \(self.offset), length: \(self.length) 数据错误！！！！！！")
+            devPrint("url: \(url), 网络层：offset: \(offset), length: \(length), request offset: \(self.offset), length: \(self.length) 数据错误！！！！！！")
             return
         }
-        devPrint("网络层：开始从网络获取到数据offset: \(offset), length: \(length)")
+        devPrint("url: \(url), 网络层：开始从网络获取到数据offset: \(offset), length: \(length)")
         currentTask?.cancel()
         currentTask = nil
-        let task = DataSourceRequestTask(session: session, url: url, offset: offset, length: length, response: nil) { [weak self] (o, d) in
+        let task = DataSourceRequestTask(session: session, url: url, offset: offset, length: length, response: nil, data: { [weak self] (o, d) in
             guard let self else { return }
             self.dataBlock?(d)
             if self.currentOffset != o {
-                devPrint("网络层：缓存写入错误 currentOffset: \(self.currentOffset), o: \(o)")
+                devPrint("url: \(self.url), 网络层：缓存写入错误 currentOffset: \(self.currentOffset), o: \(o)")
             }
             self.cache.writeData(d, offset: o, complete: nil)
             self.currentOffset += UInt64(d.count)
-            devPrint("网络层：从网络获取到数据offset: \(o), length: \(d.count)")
-        } complete: { [weak self] (error) in
+            devPrint("url: \(self.url), 网络层：从网络获取到数据offset: \(o), length: \(d.count)")
+        }, complete: { [weak self] (error) in
             self?.currentTask = nil
-            devPrint("网络层：从网络获取到数据完成error: \(error)")
+            devPrint("url: \(self?.url), 网络层：从网络获取到数据完成error: \(error)")
             if let error {
                 self?.complete?(error)
             } else {
                 self?.checkDataSourcePosition()
             }
+        })
+        task.resume()
+        currentTask = task
+    }
+}
+
+// MARK: - 预加载
+extension DataSourceDataRequestOperation {
+    func preload() {
+        cache.findData(offset: offset, length: length, onQueue: operationQueue) { [weak self] (cacheOffset, cacheLength) in
+            if cacheLength > 0 {
+                self?.complete?(nil)
+            } else {
+                self?.preloadFromNetwork()
+            }
         }
+    }
+    
+    private func preloadFromNetwork() {
+        currentTask?.cancel()
+        currentTask = nil
+        let task = DataSourceRequestTask(session: session, url: url, offset: offset, length: length, response: { [weak self] (response, videoLength, mimeType) in
+            guard let self else { return }
+            if videoLength > 0 {
+                self.cache.updateVideoLength(videoLength, mimeType: mimeType)
+            }
+        }, data: { [weak self] (o, d) in
+            guard let self else { return }
+            self.dataBlock?(d)
+            if self.currentOffset != o {
+                devPrint("url: \(self.url), 网络层：缓存写入错误 currentOffset: \(self.currentOffset), o: \(o)")
+            }
+            self.cache.writeData(d, offset: o, complete: nil)
+            self.currentOffset += UInt64(d.count)
+            devPrint("url: \(self.url), 网络层：从网络获取到数据offset: \(o), length: \(d.count)")
+        }, complete: { [weak self] (error) in
+            self?.currentTask = nil
+            devPrint("url: \(self?.url), 网络层：从网络获取到数据完成error: \(error)")
+            if let error {
+                self?.complete?(error)
+            } else {
+                self?.checkDataSourcePosition()
+            }
+        })
         task.resume()
         currentTask = task
     }

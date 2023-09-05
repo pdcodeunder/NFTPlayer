@@ -6,3 +6,15 @@
 //
 
 import Foundation
+
+class PlayerPreDownloader {
+    static let shared = PlayerPreDownloader()
+    
+    func preload(urls: [URL], length: UInt64) {
+        urls.forEach({ DataSourceCenter.shared.preload(url: $0, offset: 0, length: length) })
+    }
+    
+    func preload(url: URL, length: UInt64) {
+        DataSourceCenter.shared.preload(url: url, offset: 0, length: length)
+    }
+}
