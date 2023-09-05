@@ -42,7 +42,6 @@ class VideoPlayer: NSObject {
     private var playStatus: PlayStatus = .initialize {
         didSet {
             delegate?.videoPlayerPlayStatusChanged(player: self, status: playStatus)
-            print("-------player status: \(playStatus)")
         }
     }
     private var currentTime: TimeInterval = 0 {
@@ -60,22 +59,11 @@ class VideoPlayer: NSObject {
             delegate?.videoPlayerLoadedTime(player: self, time: loadedTime)
         }
     }
-    private var observationList: [NSKeyValueObservation] = []
     weak var delegate: VideoPlayerDelegate?
     
     init(url: URL, delegate: VideoPlayerDelegate?) {
         self.delegate = delegate
         self.url = url
-//        let loader = SimpleResourceLoaderDelegate(withURL: url)
-//        urlAsset = AVURLAsset(url: loader.streamingAssetURL)
-//        loader.completion = { localFileURL in
-//            if let localFileURL = localFileURL {
-//                print("Media file saved to: \(localFileURL)")
-//            } else {
-//                print("Failed to download media file.")
-//            }
-//        }
-//        resourceLoader = loader
         
         let loader = AssetResourceLoader(url: url)
         urlAsset = AVURLAsset(url: loader.playerUrl ?? url)
@@ -191,6 +179,8 @@ extension VideoPlayer {
             readyToPlay()
         case .failed:
             failedToPlay()
+        @unknown default:
+            failedToPlay()
         }
     }
     
@@ -213,7 +203,11 @@ extension VideoPlayer {
     }
     
     /// 加载进度改变
-    private func observedLoadedTimeRangesChanged(time: TimeInterval) {
+    private func observedLoadedTimeRangesChanged() {
+        guard let rangeValue = playerItem.loadedTimeRanges.first?.timeRangeValue else {
+            return
+        }
+        let time = rangeValue.end.seconds
         loadedTime = max(loadedTime, time)
         checkTryPlay()
     }
@@ -248,7 +242,7 @@ extension VideoPlayer {
         guard playStatus == .playing else {
             return
         }
-        if (!playerItem.isPlaybackLikelyToKeepUp) && (CMTimeCompare(playerItem.currentTime(), kCMTimeZero) == 1) && (CMTimeCompare(playerItem.currentTime(), playerItem.duration) != 0) {
+        if (!playerItem.isPlaybackLikelyToKeepUp) && (CMTimeCompare(playerItem.currentTime(), CMTime.zero) == 1) && (CMTimeCompare(playerItem.currentTime(), playerItem.duration) != 0) {
             playStatus = .stalled
             player.pause()
         }
@@ -263,29 +257,23 @@ extension VideoPlayer {
 
 // MARK: - 通知监控
 extension VideoPlayer {
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
+        guard let _ = object as? AVPlayerItem else { return }
+        if keyPath == "loadedTimeRanges" {
+            observedLoadedTimeRangesChanged()
+        }
+        else if keyPath == "status" {
+            observedPlayerStatusDidChanged()
+        }
+        else if keyPath == "playbackLikelyToKeepUp" {
+            observedPlaybackLikelyToKeepUpChanged()
+        }
+    }
+    
     private func addPlayerItemObservers() {
-        let statusObserve = playerItem.observe(\.status) { [weak self] (_, change) in
-            self?.observedPlayerStatusDidChanged()
-        }
-        observationList.append(statusObserve)
-        
-        let loadObserve = playerItem.observe(\.loadedTimeRanges) { [weak self] _, change in
-            guard let v = change.newValue?.first?.timeRangeValue else { return }
-            self?.observedLoadedTimeRangesChanged(time: v.end.seconds)
-        }
-        observationList.append(loadObserve)
-        
-        let keepUpObserve = playerItem.observe(\.isPlaybackLikelyToKeepUp) { [weak self] _, change in
-            self?.observedPlaybackLikelyToKeepUpChanged()
-        }
-        observationList.append(keepUpObserve)
-        
-        let durationOberve = playerItem.observe(\.duration) { [weak self] _, chang in
-            if let d = chang.newValue?.seconds {
-                self?.duration = d
-            }
-        }
-        observationList.append(durationOberve)
+        playerItem.addObserver(self, forKeyPath: "loadedTimeRanges", options: .new, context: nil)
+        playerItem.addObserver(self, forKeyPath: "status", options: .new, context: nil)
+        playerItem.addObserver(self, forKeyPath: "playbackLikelyToKeepUp", options: .new, context: nil)
         
         NotificationCenter.default.addObserver(self, selector: #selector(playbackStalledNotification), name: .AVPlayerItemPlaybackStalled, object: playerItem)
         NotificationCenter.default.addObserver(self, selector: #selector(failedToPlayToEndTimeNotification), name: .AVPlayerItemFailedToPlayToEndTime, object: playerItem)
@@ -296,6 +284,9 @@ extension VideoPlayer {
     
     private func removePlayerItemObservers() {
         NotificationCenter.default.removeObserver(self)
+        playerItem.removeObserver(self, forKeyPath: "playbackLikelyToKeepUp")
+        playerItem.removeObserver(self, forKeyPath: "loadedTimeRanges")
+        playerItem.removeObserver(self, forKeyPath: "status")
     }
     
     /// 卡顿

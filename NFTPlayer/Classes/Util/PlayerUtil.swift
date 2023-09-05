@@ -7,7 +7,7 @@
 
 import Foundation
 import UIKit
-import CommonCrypto
+import CryptoKit
 
 func devPrint(_ items: Any...) {
     #if DEBUG
@@ -41,17 +41,10 @@ class PlayerUtil {
     }
     
     static func md5(_ string: String) -> String {
-        let length = Int(CC_MD5_DIGEST_LENGTH)
-        var digest = [UInt8](repeating: 0, count: length)
-        if let d = string.data(using: .utf8) {
-            _ = d.withUnsafeBytes { body -> String in
-                CC_MD5(body.baseAddress, CC_LONG(d.count), &digest)
-                return ""
-            }
-        }
-        return (0 ..< length).reduce("") {
-            $0 + String(format: "%02x", digest[$1])
-        }
+        let messageData = string.data(using: .utf8)!
+        let digestData = Insecure.MD5.hash (data: messageData)
+        let digestHex = String(digestData.map { String(format: "%02hhx", $0) }.joined().prefix(32))
+        return digestHex
     }
     
     static func cacheRootPath() -> String? {

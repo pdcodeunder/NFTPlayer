@@ -48,7 +48,6 @@ class DataSourceUrlOperation {
     }
     
     func cancelLoadingRequest(_ request: AVAssetResourceLoadingRequest) {
-        devPrint("url: \(url), 网络层：接收到取消指令：\(operationSet)")
         let list = operationSet.filter({ $0.requestIdentifer === request })
         operationSet.removeAll { item in
             if item.requestIdentifer === request {
@@ -56,7 +55,6 @@ class DataSourceUrlOperation {
             }
             return false
         }
-        devPrint("url: \(url), 网络层：operationSet移除完成：\(operationSet)")
         list.forEach({ $0.cancel() })
     }
     
@@ -76,7 +74,6 @@ class DataSourceUrlOperation {
     }
     
     func obtainData(for loadingRequest: AVAssetResourceLoadingRequest, data: ((Data) -> Void)?, complete: ((Error?) -> Void)?) {
-        devPrint("url: \(url), 网络层：开始获取视频数据")
         guard let dataRequest = loadingRequest.dataRequest else {
             complete?(DataSourceError.requestError)
             return

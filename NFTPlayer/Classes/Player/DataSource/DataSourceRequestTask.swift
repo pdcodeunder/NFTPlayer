@@ -48,12 +48,10 @@ class DataSourceRequestTask: Equatable {
     
     func resume() {
         receiveOffset = offset
-        devPrint("url: \(url), 网络task：开始网络请求 id: \(task?.taskIdentifier), offset：\(offset), length: \(length)")
         task?.resume()
     }
     
     func cancel() {
-        devPrint("url: \(url), 网络task：取消网络请求 id: \(task?.taskIdentifier), offset：\(offset), length: \(length)")
         task?.cancel()
     }
     
@@ -82,13 +80,11 @@ class DataSourceRequestTask: Equatable {
         if self.offset + self.length > length {
             self.length = length - self.offset
         }
-        devPrint("url: \(url), 网络task: 接收到网络response id：\(dataTask.taskIdentifier)，length：\(length), mimeType: \(response.mimeType)")
         self.response?(response, length, response.mimeType)
         completionHandler(.allow)
     }
     
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        devPrint("url: \(url), 网络task: 接收到网络数据 id：\(dataTask.taskIdentifier)")
         self.data?(receiveOffset, data)
         let count = UInt64(data.count)
         receiveOffset += count
@@ -99,7 +95,6 @@ class DataSourceRequestTask: Equatable {
     }
     
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        devPrint("url: \(url), 网络task：完成网络请求 id: \(task.taskIdentifier), offset：\(offset), length: \(length)")
         guard !isFinish else {
             return
         }

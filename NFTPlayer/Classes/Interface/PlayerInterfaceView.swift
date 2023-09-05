@@ -28,6 +28,7 @@ class PlayerInterfaceDefaultView: UIView, PlayerInterfaceViewProtocol {
     private let bottomGradientLayer = CAGradientLayer()
     private let timeLabel = UILabel()
     private let progressView = UIView()
+    private let totalLayer = CALayer()
     private let loadedLayer = CALayer()
     private let timeLayer = CALayer()
     private let timeDot = UIView()
@@ -86,10 +87,13 @@ class PlayerInterfaceDefaultView: UIView, PlayerInterfaceViewProtocol {
         
         bottomView.addSubview(progressView)
         
+        totalLayer.backgroundColor = UIColor.white.cgColor
+        totalLayer.cornerRadius = 1
+        progressView.layer.addSublayer(totalLayer)
+        
         loadedLayer.backgroundColor = UIColor.gray.cgColor
         loadedLayer.cornerRadius = 1
         progressView.layer.addSublayer(loadedLayer)
-        
         
         timeLayer.backgroundColor = UIColor.blue.cgColor
         timeLayer.cornerRadius = 1
@@ -122,20 +126,22 @@ class PlayerInterfaceDefaultView: UIView, PlayerInterfaceViewProtocol {
         timeLabel.frame = CGRect(x: 16, y: (bottomView.bounds.height - 20) / 2.0, width: 60, height: 20)
         durationLabel.frame = CGRect(x: bounds.width - 10 - 60, y: (bottomView.bounds.height - 20) / 2.0, width: 60, height: 20)
         progressView.frame = CGRect(x: timeLabel.frame.maxX, y: (bottomView.frame.height - 30) / 2.0, width: durationLabel.frame.minX - timeLabel.frame.maxX - 10 * 2, height: 30)
-        loadedLayer.frame = CGRect(x: 0, y: (progressView.frame.height - 2) / 2.0, width: progressView.frame.width, height: 2)
-        timeLayer.frame = loadedLayer.frame
+        totalLayer.frame = CGRect(x: 0, y: (progressView.frame.height - 2) / 2.0, width: progressView.frame.width, height: 2)
         
         refreshPlayerTimeUI()
     }
     
     private func refreshPlayerTimeUI() {
         var currentTimeCenter: CGFloat = 0
+        var loadedCenter: CGFloat = 0
         if duration > 0 {
-            currentTimeCenter = progressView.frame.width * currentTime / duration
+            currentTimeCenter = totalLayer.frame.width * currentTime / duration
+            loadedCenter = totalLayer.frame.width * loadedTime / duration
         }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        timeLayer.frame = CGRect(x: 0, y: loadedLayer.frame.minY, width: currentTimeCenter, height: loadedLayer.frame.height)
+        loadedLayer.frame = CGRect(x: 0, y: totalLayer.frame.minY, width: loadedCenter, height: totalLayer.frame.height)
+        timeLayer.frame = CGRect(x: 0, y: totalLayer.frame.minY, width: currentTimeCenter, height: totalLayer.frame.height)
         timeDot.frame = CGRect(x: currentTimeCenter - 8, y: timeLayer.frame.minY + (timeLayer.frame.height - 8) / 2.0, width: 8, height: 8)
         CATransaction.commit()
     }
@@ -192,7 +198,7 @@ class PlayerInterfaceDefaultView: UIView, PlayerInterfaceViewProtocol {
         let timer = Timer(timeInterval: 5, repeats: false) { [weak self] _ in
             self?.hiddenControlUI()
         }
-        RunLoop.current.add(timer, forMode: RunLoop.Mode.commonModes)
+        RunLoop.current.add(timer, forMode: .common)
         timer.fireDate = Date(timeIntervalSinceNow: 5)
         self.timer = timer
     }
