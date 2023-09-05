@@ -116,6 +116,7 @@ extension DataSourceCache {
     }
     
     func internalUpdateVideoLength(_ length: UInt64, mimeType: String?) {
+        devPrint("url: \(url), 缓存层：存储视频信息 videoLength: \(length), mimeType: \(mimeType)")
         self.videoLength = length
         self.mimeType = mimeType
         archiveCacheRanges()
@@ -394,5 +395,9 @@ extension DataSourceCache {
         dataRanges = model?.ranges ?? []
         videoLength = model?.length ?? 0
         mimeType = model?.mimeType
+        devPrint("url: \(url), 缓存层：从文件中获取到缓存 videoLength： \(videoLength), mimeType: \(mimeType)")
+        dataRanges.forEach { currentRange in
+            devPrint("url: \(url), 缓存层：从文件中获取到缓存range offset： \(currentRange.offset), length: \(currentRange.length)")
+        }
     }
 }

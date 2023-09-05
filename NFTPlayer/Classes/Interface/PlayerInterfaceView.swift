@@ -8,6 +8,7 @@
 import Foundation
 import UIKit
 
+// MARK: - 视频交互控件协议
 public protocol PlayerInterfaceViewProtocol: UIView {
     var isPause: Bool { get set }
     var duration: TimeInterval { get set }
@@ -20,6 +21,7 @@ public protocol PlayerInterfaceViewProtocol: UIView {
     func playerFinish()
 }
 
+// MARK: - 默认视频交互控件
 class PlayerInterfaceDefaultView: UIView, PlayerInterfaceViewProtocol {
     private let bottomView = UIView()
     private let pauseBtn = UIButton()

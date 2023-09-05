@@ -117,7 +117,7 @@ extension DataSourceUrlOperation {
                 return item.requestIdentifer === obj
             })
         })
-        operation.resume()
+        operation.preload()
         operationSet.append(operation)
     }
 }

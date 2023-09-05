@@ -61,7 +61,14 @@ class DataSourceRequestTask: Equatable {
         var length: UInt64 = 0
         if let httpResponse = response as? HTTPURLResponse {
             let header = httpResponse.allHeaderFields
-            let content = header["Content-Range"] as? String
+            let content: String?
+            if let str = header["Content-Range"] as? String {
+                content = str
+            } else if let str = header["content-range"] as? String {
+                content = str
+            } else {
+                content = nil
+            }
             if let arr = content?.components(separatedBy: "/"), let lengthStr = arr.last {
                 let videoLength: UInt64
                 if let requestLength = UInt64(lengthStr) {
@@ -72,6 +79,10 @@ class DataSourceRequestTask: Equatable {
                 length = videoLength
             }
         }
+        if self.offset + self.length > length {
+            self.length = length - self.offset
+        }
+        devPrint("url: \(url), 网络task: 接收到网络response id：\(dataTask.taskIdentifier)，length：\(length), mimeType: \(response.mimeType)")
         self.response?(response, length, response.mimeType)
         completionHandler(.allow)
     }

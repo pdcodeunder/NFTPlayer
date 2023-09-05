@@ -12,7 +12,7 @@ import CoreMedia
 
 protocol VideoPlayerDelegate: AnyObject {
     /// 当前播放状态改变
-    func videoPlayerPlayStatusChanged(player: VideoPlayer, status: VideoPlayer.PlayStatus)
+    func videoPlayerPlayStatusChanged(player: VideoPlayer, status: PlayStatus)
     /// 当前播放进度
     func videoPlayerPlayDuration(player: VideoPlayer, duration: TimeInterval, currentTime: TimeInterval)
     /// 当前加载进度
@@ -26,18 +26,6 @@ class VideoPlayer: NSObject {
     enum ControlStatus {
         case initialize
         case play
-        case pause
-        case failed
-        case end
-    }
-    
-    /// 播放状态
-    enum PlayStatus {
-        case initialize
-        case ready
-        case playing
-        case seeking
-        case stalled
         case pause
         case failed
         case end

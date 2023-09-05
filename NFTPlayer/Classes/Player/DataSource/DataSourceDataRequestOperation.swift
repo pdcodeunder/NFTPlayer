@@ -14,7 +14,7 @@ class DataSourceDataRequestOperation: DataSourceRequestOperationProtocol {
     let url: URL
     let requestIdentifer: AnyObject
     let offset: UInt64
-    let length: UInt64
+    var length: UInt64
     let dataBlock: ((Data) -> Void)?
     let complete: ((Error?) -> Void)?
     let operationQueue: DispatchQueue
@@ -68,6 +68,7 @@ extension DataSourceDataRequestOperation {
         devPrint("url: \(url), 网络层：开始检查是否需要从网络获取视频")
         guard currentOffset < offset + length else {
             complete?(nil)
+            devPrint("url: \(url), 网络层：数据填充完成")
             return
         }
         
@@ -132,7 +133,12 @@ extension DataSourceDataRequestOperation {
         devPrint("url: \(url), 网络层：开始从网络获取到数据offset: \(offset), length: \(length)")
         currentTask?.cancel()
         currentTask = nil
-        let task = DataSourceRequestTask(session: session, url: url, offset: offset, length: length, response: nil, data: { [weak self] (o, d) in
+        let task = DataSourceRequestTask(session: session, url: url, offset: offset, length: length, response: { [weak self] (_, videoLength, _) in
+            guard let self else { return }
+            if self.offset + self.length > videoLength {
+                self.length = videoLength - self.offset
+            }
+        }, data: { [weak self] (o, d) in
             guard let self else { return }
             self.dataBlock?(d)
             if self.currentOffset != o {
@@ -172,6 +178,10 @@ extension DataSourceDataRequestOperation {
         currentTask = nil
         let task = DataSourceRequestTask(session: session, url: url, offset: offset, length: length, response: { [weak self] (response, videoLength, mimeType) in
             guard let self else { return }
+            devPrint("url: \(self.url), 网络层：获取到response videoLength: \(videoLength), mimeType: \(mimeType)")
+            if self.offset + self.length > videoLength {
+                self.length = videoLength - self.offset
+            }
             if videoLength > 0 {
                 self.cache.updateVideoLength(videoLength, mimeType: mimeType)
             }
