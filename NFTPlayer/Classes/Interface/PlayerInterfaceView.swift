@@ -33,7 +33,7 @@ class PlayerInterfaceDefaultView: UIView, PlayerInterfaceViewProtocol {
     private let timeLayer = CALayer()
     private let timeDot = UIView()
     private let durationLabel = UILabel()
-    private let loadingView = UIProgressView()
+    private let loadingView = UIActivityIndicatorView(style: .medium)
     private var isSeeking = false
     private var timer: Timer?
     var currentTime: TimeInterval = 0 {
@@ -64,7 +64,13 @@ class PlayerInterfaceDefaultView: UIView, PlayerInterfaceViewProtocol {
     }
     var isLoading: Bool = false {
         didSet {
+            guard isLoading != oldValue else { return }
             loadingView.isHidden = !isLoading
+            if isLoading {
+                loadingView.startAnimating()
+            } else {
+                loadingView.stopAnimating()
+            }
         }
     }
     

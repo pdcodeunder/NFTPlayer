@@ -66,7 +66,7 @@ class ViewController: UIViewController {
             URL(string: "http://www.w3school.com.cn/example/html5/mov_bbb.mp4")!,
             URL(string: "https://www.w3schools.com/html/movie.mp4")!,
             URL(string: "http://clips.vorwaerts-gmbh.de/big_buck_bunny.mp4")!,
-        ], length: 30 * 1024)
+        ], length: 300 * 1024)
     }
 }
 
@@ -99,7 +99,7 @@ extension ViewController: UITableViewDataSource, UITableViewDelegate {
     }
     
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-        return 200
+        return 300
     }
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {

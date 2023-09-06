@@ -22,6 +22,10 @@ class AssetResourceLoader: NSObject {
     }
     
     var playerUrl: URL? {
+        /// 磁盘存储空间不足时，不使用自定义缓存
+        guard PlayerUtil.freeDiskSpaceInBytes() > 60 * 1024 * 1024 else {
+            return url
+        }
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         components?.scheme = "nftplayer"
         return components?.url

@@ -152,6 +152,25 @@ public class PlayerManager {
     }
 }
 
+// MARK: - 缓存
+extension PlayerManager {
+    /// 清理最近7天缓存
+    public
+    func clearOlderThanLastWeekCache() {
+        DataSourceCache.clearOlderThanLastWeekCache()
+    }
+    /// 清理全部缓存
+    public
+    func clearCache() {
+        DataSourceCache.clearCache()
+    }
+    /// 获取缓存大小
+    public
+    func getCacheSize() -> UInt64 {
+        DataSourceCache.getCacheSize()
+    }
+}
+
 extension PlayerManager {
     private func internalPlay(url: URL, containerView: UIView) {
         player?.pause()

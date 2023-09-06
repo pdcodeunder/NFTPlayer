@@ -37,15 +37,6 @@ enum DataSourceError: Error {
 }
 
 class DataSourceCache {
-    /// 清除缓存
-    static func clearCache() {
-        
-    }
-    /// 获取缓存大小
-    static func getCacheSize() -> CGFloat {
-        return 0
-    }
-    
     var videoLength: UInt64 = 0
     var mimeType: String?
     let url: URL
@@ -90,6 +81,33 @@ class DataSourceCache {
         handleQueue.async { [weak self] in
             self?.internalWriteData(data, offset: offset, complete: complete)
         }
+    }
+}
+
+extension DataSourceCache {
+    /// 清除七天缓存
+    static func clearOlderThanLastWeekCache() {
+        guard let docFolderURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            fatalError("player datasource clearLastWeekCache error")
+        }
+        let fileURL = docFolderURL.appendingPathComponent("player")
+        deleteFilesOlderThanSevenDays(inDirectory: fileURL.path)
+    }
+    /// 清除缓存
+    static func clearCache() {
+        guard let docFolderURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            fatalError("player datasource clearLastWeekCache error")
+        }
+        let fileURL = docFolderURL.appendingPathComponent("player")
+        cleanUnusedFiles(inDirectory: fileURL.path)
+    }
+    /// 获取缓存大小
+    static func getCacheSize() -> UInt64 {
+        guard let docFolderURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            fatalError("player datasource clearLastWeekCache error")
+        }
+        let fileURL = docFolderURL.appendingPathComponent("player")
+        return PlayerUtil.diskSpaceSize(for: fileURL.path)
     }
 }
 
@@ -381,4 +399,47 @@ extension DataSourceCache {
         videoLength = model?.length ?? 0
         mimeType = model?.mimeType
     }
+
+    private static func deleteFilesOlderThanSevenDays(inDirectory directoryPath: String) {
+        let fileManager = FileManager.default
+        let sevenDaysAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date())!
+        do {
+            let folderContents = try fileManager.contentsOfDirectory(atPath: directoryPath)
+            folderContents.forEach({ fileName in
+                let filePath = (directoryPath as NSString).appendingPathComponent("\(fileName)/cache_ranges")
+                if let fileAttributes = try? fileManager.attributesOfItem(atPath: filePath),
+                   let creationDate = fileAttributes[.modificationDate] as? Date {
+                    if creationDate < sevenDaysAgo {
+                        let cachePath = (directoryPath as NSString).appendingPathComponent(fileName)
+                        try? fileManager.removeItem(atPath: cachePath)
+                    }
+                }
+            })
+        } catch {
+            print("文件读取 Error: \(error)")
+        }
+    }
+
+    private static func cleanUnusedFiles(inDirectory directoryPath: String) {
+        let fileManager = FileManager.default
+        
+        do {
+            let folderContents = try fileManager.contentsOfDirectory(atPath: directoryPath)
+            
+            for fileName in folderContents {
+                let filePath = (directoryPath as NSString).appendingPathComponent("\(fileName)/cache_ranges")
+                // 使用 fileHandleForReading 来尝试打开文件，如果失败表示文件没有被打开
+                if let fileHandle = FileHandle(forReadingAtPath: filePath) {
+                    fileHandle.closeFile()
+                } else {
+                    let cachePath = (directoryPath as NSString).appendingPathComponent(fileName)
+                    // 如果文件没有被打开，就删除它
+                    try? fileManager.removeItem(atPath: cachePath)
+                }
+            }
+        } catch {
+            print("Error: \(error)")
+        }
+    }
+
 }

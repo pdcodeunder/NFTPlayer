@@ -15,9 +15,11 @@
     "git": "https://github.com/pengdong/NFTPlayer.git",
     "tag": "0.1.0"
   },
+  "swift_versions": "5.0",
   "platforms": {
     "ios": "13.0"
   },
   "source_files": "NFTPlayer/Classes/**/*",
-  "resources": "NFTPlayer/Assets/*"
+  "resources": "NFTPlayer/Assets/*",
+  "swift_version": "5.0"
 }

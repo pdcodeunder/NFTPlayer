@@ -53,4 +53,51 @@ class PlayerUtil {
         let documnetPath = documentPaths.first
         return documnetPath
     }
+    
+    static func freeDiskSpaceInBytes() -> Int64 {
+        if #available(iOS 11.0, *) {
+            if let space = try? URL(fileURLWithPath: NSHomeDirectory() as String).resourceValues(forKeys: [URLResourceKey.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage {
+                return space
+            } else {
+                return 0
+            }
+        } else {
+            if let systemAttributes = try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory() as String),
+            let freeSpace = (systemAttributes[FileAttributeKey.systemFreeSize] as? NSNumber)?.int64Value {
+                return freeSpace
+            } else {
+                return 0
+            }
+        }
+    }
+    
+    static func diskSpaceSize(for path: String) -> UInt64 {
+        return folderSize(atPath: path)
+    }
+    
+    private static func folderSize(atPath path: String) -> UInt64 {
+        let fileManager = FileManager.default
+        var size: UInt64 = 0
+        do {
+            let contents = try fileManager.contentsOfDirectory(atPath: path)
+            for item in contents {
+                let itemPath = (path as NSString).appendingPathComponent(item)
+                var isDirectory: ObjCBool = false
+                if fileManager.fileExists(atPath: itemPath, isDirectory: &isDirectory) {
+                    if isDirectory.boolValue {
+                        // 如果是目录，递归计算子目录的大小
+                        size += folderSize(atPath: itemPath)
+                    } else {
+                        // 如果是文件，获取文件大小并累加到总大小
+                        if let fileSize = try? fileManager.attributesOfItem(atPath: itemPath)[.size] as? UInt64 {
+                            size += fileSize
+                        }
+                    }
+                }
+            }
+        } catch {
+            print("Error: \(error)")
+        }
+        return size
+    }
 }
