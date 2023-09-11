@@ -53,7 +53,7 @@ pd767180024@163.com
 
 ## 效果
 
-![运行效果](img.png)
+![运行效果](https://file.ippzone.com/img/png/id/2285310941)
 
 ## License
 
