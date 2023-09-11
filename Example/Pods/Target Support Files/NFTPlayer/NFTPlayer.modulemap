@@ -1,6 +1,0 @@
-framework module NFTPlayer {
-  umbrella header "NFTPlayer-umbrella.h"
-
-  export *
-  module * { export * }
-}
